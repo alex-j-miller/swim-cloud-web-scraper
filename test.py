@@ -1,6 +1,7 @@
 import SwimScraper as ss
 import csv
 
+
 def getRosterToCSV():
     roster = getRoster()
     with open('csv/roster.csv', 'w', newline='') as file:
@@ -52,21 +53,82 @@ def getMIAATeamsToCSV():
 
     # print("CSV file created successfully.")
 
-def getEventID(event_name):
+def validEvent(event_name):
+    return event_name in ss.events
+    
+def getSwimmerTimes(swimmer_ID, event_name):
+    event_ID = getEventID(event_name)
+    if event_ID == -1:
+        return []
+    return ss.getSwimmerTimes(swimmer_ID, '', event_ID)
+    
+# def getRosterTimes():
+#     roster = getRoster()
+#     csv = []
+#     for i in range(len(roster)):
+#         print(f"{roster[i]['swimmer_name']} : {roster[i]['swimmer_ID']}")
+#         print(f"{i/len(roster)*100}%")
+#         events = ss.getSwimmerEvents(roster[i]['swimmer_ID'])
+#         print(events)
+#         for event in events:
+#             times = getSwimmerTimes(roster[i]['swimmer_ID'], event)
+#             if times != []:
+#                 csv.append(times)
+#                 print(f"{roster[i]['swimmer_name']} : {event} : {times}")
+
+
+# roster = getRoster()
+# events = ss.getSwimmerEvents(roster[0]['swimmer_ID'])
+# print(events)
+# for event in events:
+#     times = getSwimmerTimes(roster[0]['swimmer_ID'], event)
+#     print(f"{roster[0]['swimmer_name']} : {event} : {times}")
+
+def getEventCode(event_name):
     if ' Y ' in event_name:
         event_name = event_name.replace(' Y ', ' ')
+        event_id = ss.getEventID(event_name)
+        event_code = str(event_id) + 'Y'
     elif ' L ' in event_name:
         event_name = event_name.replace(' L ', ' ')
-    return ss.getEventID(event_name)
+        event_id = ss.getEventID(event_name)
+        event_code = str(event_id) + 'L'
+    
+    if validEvent(event_name):
+        return event_code
+    else:
+        return -1
 
-roster = getRoster()
-csv = []
-for i in range(len(roster)):
-    print(f"{roster[i]['swimmer_name']} : {roster[i]['swimmer_ID']}")
-    print(f"{i/len(roster)*100}%")
-    events = ss.getSwimmerEvents(roster[i]['swimmer_ID'])
-    print(events)
+def getSwimmerTimesAndEvents(swimmer_id, swimmer_name):
+    events = ss.getSwimmerEvents(swimmer_id)
+    swimmer_times = []
     for event in events:
-        times = ss.getSwimmerTimes(roster[i]['swimmer_ID'], '', event_ID=getEventID(event))
-        csv.append(times)
-        print(f"{roster[i]['swimmer_name']} : {event} : {times}")
+        event_code = getEventCode(event)
+        if event_code != -1:
+            times = ss.getSwimmerIDTimes(swimmer_id, event_code, swimmer_name)
+            swimmer_times.append(times)
+            print(f"{swimmer_name} : {event} : {times}")
+
+    return swimmer_times
+
+def getRosterTimes():
+    swimmer_times = []
+    roster = getRoster()
+
+    for swimmer in roster:
+        swimmer_times.append(getSwimmerTimesAndEvents(swimmer['swimmer_ID'], swimmer['swimmer_name']))
+
+        with open('csv/times.csv', 'w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=swimmer_times[0][0].keys())
+            writer.writeheader()
+
+            for event in swimmer_times:
+                for time in event:
+                    writer.writerow(time)
+
+
+
+
+
+
+getRosterTimes()

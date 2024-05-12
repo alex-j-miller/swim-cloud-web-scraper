@@ -109,27 +109,23 @@ def convertTime(display_time):
 def getIndexes(data):
     meet_name_index = -1
     date_index = -1
-    imp_index = -1
-    indexes = []
-
+    additional_info_index = -1
+    # print(len(data))
     i = 0
     for td in data:
-        if td.has_attr('class') and td['class'][0] == 'hidden-xs':
+        if td.text.strip() == 'Meet':
             meet_name_index = i
-        elif td.has_attr('class') and td['class'][0] == 'u-text-truncate':
+        elif td.text.strip() == 'Date':
             date_index = i
-        elif td.has_attr('class') and td['class'][0] == 'u-text-end':
-            imp_index = i
+        elif td.text.strip() == '' and td.has_attr('class') and 'c-table-clean__col-fit' in td['class']:
+            additional_info_index = i
 
         i = i + 1
 
-    indexes.append(meet_name_index)
-    indexes.append(date_index)
-    indexes.append(imp_index)
+    indexes = {'meet_name_index': meet_name_index, 'date_index': date_index, 'additional_info_index': additional_info_index}
 
-    
-    return {'meet_name_index' : 2, 'date_index' : 3, 'additional_info_index' : 1, 'imp_index' : -1} #for the event '100 Free', indexes = {'meet_name_index' : 2, 'date_index' : 3, 'additional_info_index' : 4, 'imp_index' : 6}
-    # return indexes
+    return indexes
+    # return {'meet_name_index' : 2, 'date_index' : 3, 'additional_info_index' : 1, 'imp_index' : -1} #for the event '100 Free', indexes = {'meet_name_index' : 2, 'date_index' : 3, 'additional_info_index' : 4, 'imp_index' : 6}
 
 
 #SCRAPING FUNCTIONS ------------------------------------
@@ -398,6 +394,114 @@ def getSwimmerEvents(swimmer_ID):
 
     driver.close()
     return events
+
+def getSwimmerIDTimes(swimmer_ID, event_code, swimmer_name):
+    #set driver options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    driver = webdriver.Chrome(options = chrome_options)
+    ignored_exceptions = (NoSuchElementException, StaleElementReferenceException,)
+
+    #get event_id and event_name
+    event_ID = event_code.removesuffix('Y').removesuffix('L')
+    if event_ID.isnumeric():
+        event_name = getEventName(int(event_ID)) + " " + event_code[-1]
+    else:
+        event_name = getEventName(event_ID)
+
+    time_list = list()
+
+    swimmer_URL = 'https://www.swimcloud.com/swimmer/' + str(swimmer_ID) + '/'
+    dropdownCheck = True
+    eventCheck = True
+
+    driver.get(swimmer_URL)
+
+    tabs = driver.find_elements(By.CSS_SELECTOR, 'li.c-tabs__item')
+
+    _time.sleep(1) #makes sure the event tab pops up on website
+
+    for tab in tabs: #finds correct tab on swimmer's profile and clicks on it
+        if(tab.text == 'EVENT PROGRESSION'):
+            tab.click()
+    
+    wait = WebDriverWait(driver, 10, ignored_exceptions = ignored_exceptions)
+
+    try:
+        event_dropdown = wait.until(EC.element_to_be_clickable((By.ID, 'byEventDropDownList'))) #waits for the event drop down list to show up
+        event_dropdown.click()
+    except TimeoutException: #if there is no event drop down
+        dropdownCheck = False
+
+    if dropdownCheck:
+
+        test_xpath = f"//a[@data-event='{event_code}']"
+
+        # print(f"DEBUG : test_xpath : {test_xpath}") #debug
+
+        try:
+            event = wait.until(EC.presence_of_element_located((By.XPATH, test_xpath)))
+            event.click()
+        except TimeoutException: # if a swimmer does not have the event listed in the dropdown
+            eventCheck = False
+        
+        # print(f"DEBUG : eventCheck : {eventCheck}") #debug
+        
+        if eventCheck: #if the event is listed
+
+            _time.sleep(1)
+
+            html = driver.page_source
+
+            soup = bs(html, 'html.parser')
+
+            tables = soup.find_all('table', attrs = {'class' : 'c-table-clean'})
+
+            # Two tables on the page. Second table from the EVENT PROGRESSION tab and contains the times.
+            try:
+                header = tables[1].find_all('tr')[0:1]
+                times = tables[1].find_all('tr')[1:]
+            except AttributeError or IndexError:
+                header = []
+                times = []
+
+            columns = header[0].find_all('th')
+            indexes = getIndexes(columns) #this function finds the correct indexes for the meet name, date, year, and improvement, as they are different for some swimmers
+            
+            # print(f"DEBUG : data : {times[0].find_all('td')[1]}") #debug
+
+            for time in times:
+                data = time.find_all('td') 
+                
+                time = data[0].text.strip()
+
+                try:
+                    meet = data[indexes['meet_name_index']].text.strip()
+                except IndexError:
+                    meet = 'NA'
+
+                try:
+                    date = data[indexes['date_index']].text.strip()
+                    year = date.split(',')[-1]
+                except IndexError:
+                    date = 'NA'
+                    year = 'NA'
+
+                try:
+                    td = data[indexes['additional_info_index']]
+                    spans = td.find_all('span')
+                    additional_info = [span['title'] for span in spans if span.has_attr('title')] # a list of the additional info provided for an event
+                except IndexError:
+                    additional_info = []
+
+                time_list.append({'swimmer_name' : swimmer_name, 'swimmer_ID' : swimmer_ID, 'event': event_name, 'event_ID' : event_ID, 'time' : time, 'meet_name' : meet, 'year' : year, 'date' : date, 'additional_info': additional_info})
+
+    
+    driver.close()
+    return time_list
+
+
+        
 
 #takes as an input a swimmer's ID # and returns a list of each indivudal time for the specified event
 def getSwimmerTimes(swimmer_ID, event_name, event_ID = ''):
