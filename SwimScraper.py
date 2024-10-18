@@ -93,16 +93,16 @@ def getCity(hometown):
 
 #converts a time of the format minutes:seconds (1:53.8) to seconds (113.8)
 def convertTime(display_time):
-    if ':' in displayTime:
-        timeArray = displayTime.split(':')
+    if ':' in display_time:
+        timeArray = display_time.split(':')
         seconds = float(timeArray[0]) * 60
         seconds += float(timeArray[1])
 
         return seconds
-    elif displayTime.isalpha():
+    elif display_time.isalpha():
         pass
     else:
-        return float(displayTime)
+        return float(display_time)
 
 #for data from a html table (data), find the indexes where meet name, date, year, and improvement are
 #returns an array [meet_name_index, date_index, imp_index]
@@ -461,7 +461,8 @@ def getSwimmerIDTimes(swimmer_ID, event_code, swimmer_name):
             try:
                 header = tables[1].find_all('tr')[0:1]
                 times = tables[1].find_all('tr')[1:]
-            except AttributeError or IndexError:
+            except IndexError or AttributeError:
+                return []
                 header = []
                 times = []
 

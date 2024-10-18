@@ -57,7 +57,7 @@ def validEvent(event_name):
     return event_name in ss.events
     
 def getSwimmerTimes(swimmer_ID, event_name):
-    event_ID = getEventID(event_name)
+    event_ID = ss.getEventID(event_name)
     if event_ID == -1:
         return []
     return ss.getSwimmerTimes(swimmer_ID, '', event_ID)
@@ -93,42 +93,58 @@ def getEventCode(event_name):
         event_name = event_name.replace(' L ', ' ')
         event_id = ss.getEventID(event_name)
         event_code = str(event_id) + 'L'
+    elif ' S ' in event_name:
+        event_name = event_name.replace(' S ', ' ')
+        event_id = ss.getEventID(event_name)
+        event_code = str(event_id) + 'S'
     
     if validEvent(event_name):
         return event_code
     else:
         return -1
 
-def getSwimmerTimesAndEvents(swimmer_id, swimmer_name):
+def getSwimmerTimesAndEvents(swimmer_id, swimmer_name, wanted_events = []):
     events = ss.getSwimmerEvents(swimmer_id)
+    # print(f"Events: {events}")
     swimmer_times = []
     for event in events:
-        event_code = getEventCode(event)
-        if event_code != -1:
-            times = ss.getSwimmerIDTimes(swimmer_id, event_code, swimmer_name)
-            swimmer_times.append(times)
-            print(f"{swimmer_name} : {event} : {times}")
+        # print(f"{event in wanted_events} : {event} : {wanted_events} ")
+        if (event in wanted_events) or (wanted_events == []):
+            event_code = getEventCode(event)
+            # print(f"Event Code: {event_code}")
+            if event_code != -1:
+                times = ss.getSwimmerIDTimes(swimmer_id, event_code, swimmer_name)
+                swimmer_times.append(times)
+                print(f"{swimmer_name} : {event} : {times}")
 
     return swimmer_times
 
-def getRosterTimes():
+def getRosterTimes(roster, wanted_events = []):
     swimmer_times = []
-    roster = getRoster()
 
     for swimmer in roster:
-        swimmer_times.append(getSwimmerTimesAndEvents(swimmer['swimmer_ID'], swimmer['swimmer_name']))
+        print(f"Progress: {roster.index(swimmer)/len(roster)*100}%")
+        swimmer_times.append(getSwimmerTimesAndEvents(swimmer['swimmer_ID'], swimmer['swimmer_name'], wanted_events))
 
-        with open('csv/times.csv', 'w', newline='') as file:
-            writer = csv.DictWriter(file, fieldnames=swimmer_times[0][0].keys())
-            writer.writeheader()
+        
+    with open('csv/times.csv', 'w', newline='') as file:
+        # print(f"Printing: {swimmer_times}")
+        # print(f"Printing: {swimmer_times[0][0][0]}")
+        writer = csv.DictWriter(file, fieldnames=swimmer_times[0][0][0].keys())
+        writer.writeheader()
 
-            for event in swimmer_times:
-                for time in event:
+        for event in swimmer_times:
+            for times in event:
+                for time in times:
                     writer.writerow(time)
 
+def main():
+    events = ['50 Y Free', '100 Y Free', '200 Y Free', '500 Y Free', '1000 Y Free', '1650 Y Free', '50 Y Back', '100 Y Back', '200 Y Back', '50 Y Breast', '100 Y Breast', '200 Y Breast', '50 Y Fly', '100 Y Fly', '200 Y Fly', '100 Y IM', '200 Y IM', '400 Y IM']
+    getRosterTimes(roster=getRoster(), wanted_events=events)
 
+import time
 
-
-
-
-getRosterTimes()
+if __name__ == "__main__":
+    start_time = time.perf_counter()
+    main()
+    print(f"Time: {time.perf_counter() - start_time}")
